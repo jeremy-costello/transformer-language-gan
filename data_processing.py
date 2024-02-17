@@ -1,13 +1,17 @@
 import torch
 import numpy as np
+from collections import Counter
 from torch.utils.data import Dataset
 
 
+BOS_TOKEN = "<BOS>"
+
+
 def preprocess_text(text_file):
-    with open(data_file, "r") as f:
+    with open(text_file, "r") as f:
         text = f.read()
 
-    vocab = sorted(list(set(text)))
+    vocab = [BOS_TOKEN] + sorted(list(set(text)))
     vocab_size = len(vocab)
     
     total_length = len(list(text))
@@ -34,7 +38,7 @@ class TextDataset(Dataset):
         text_array = full_text_array[shift:]
         truncate = (text_array.shape[0] // context_length) * context_length
         truncated_array = text_array[:truncate].reshape(-1, context_length)
-        truncated_tensor = torch.tensor(chunked_array, dtype=torch.int64)
+        truncated_tensor = torch.tensor(truncated_array, dtype=torch.int64)
         self.chunked_tensor = truncated_tensor.view(-1, context_length)
     
     def __len__(self):
