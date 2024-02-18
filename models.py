@@ -16,12 +16,12 @@ class TransformerGenerator(nn.Module):
         )
 
     # custom generation function
-    def generate(self, input_id, past_key_values, temperature=1.0, top_p=1.0, fill_value=-float("inf")):
+    def generate(self, input_ids, past_key_values, temperature=1.0, top_p=1.0, fill_value=-float("inf")):
         output = self(
-            input_ids=input_id,
+            input_ids=input_ids,
             past_key_values=past_key_values
         )
-        logits = output.logits
+        logits = output.logits[:, -1, :].squeeze(1)
         past_key_values = output.past_key_values
         
         # temperature
@@ -44,7 +44,7 @@ class TransformerGenerator(nn.Module):
         dist = Categorical(logits=logits)
         
         output_id = dist.sample()
-        log_prob = dist.log_prob(input_id)
+        log_prob = dist.log_prob(output_id)
         entropy = dist.entropy()
         
         return {
