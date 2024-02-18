@@ -10,7 +10,8 @@ def get_configs(vocab_size, context_length):
         num_attention_heads=4,
         max_position_embeddings=context_length,
         bos_token_id=0,
-        eos_token_id=0
+        eos_token_id=0,
+        pad_token_id=0
     )
 
     discriminator_config = LlamaConfig(

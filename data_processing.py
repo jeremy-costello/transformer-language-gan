@@ -33,17 +33,23 @@ def preprocess_text(text_file):
 
 
 class TextDataset(Dataset):
-    def __init__(self, full_text_array, context_length):
+    def __init__(self, full_text_array, context_length, batch_size):
         shift = np.random.randint(context_length)
         text_array = full_text_array[shift:]
-        truncate = (text_array.shape[0] // context_length) * context_length
-        truncated_array = text_array[:truncate].reshape(-1, context_length)
-        truncated_tensor = torch.tensor(truncated_array, dtype=torch.int64)
-        self.chunked_tensor = truncated_tensor.view(-1, context_length)
+        first_truncate = (text_array.shape[0] // context_length) * context_length
+        truncated_array = text_array[:first_truncate].reshape(-1, context_length)
+        all_padded_array = np.copy(truncated_array)
+        for truncation in range(1, context_length - 1):
+            padded_array = np.copy(truncated_array)
+            padded_array[:, truncation:] = 0
+            all_padded_array = np.concatenate((all_padded_array, padded_array), axis=0)
+        second_truncate = (all_padded_array.shape[0] // (context_length * batch_size)) * context_length * batch_size
+        all_padded_array_truncated = all_padded_array[:second_truncate]
+        self.all_padded_tensor_truncated = torch.tensor(all_padded_array_truncated, dtype=torch.int64)
     
     def __len__(self):
-        return len(self.chunked_tensor)
+        return len(self.all_padded_tensor_truncated)
 
     def __getitem__(self, idx):
-        return self.chunked_tensor[idx, :]
+        return self.all_padded_tensor_truncated[idx, :]
         
