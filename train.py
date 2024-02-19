@@ -11,7 +11,7 @@ from models import TransformerGenerator, TransformerDiscriminator
 
 
 device = "cuda"
-num_epochs = 100
+num_epochs = 1000
 batch_size = 64
 num_workers = 3
 context_length = 128
@@ -21,11 +21,11 @@ entropy_mult = 0.01
 moving_average_period = 10
 clip_value = 1.0
 output_text_file_path = "outputs.txt"
-gamma = 0.8
+gamma = 0.5
 
 steps_per_epoch = 135
-generator_lr = 6e-5
-discriminator_lr = 3e-3
+generator_lr = 1e-4
+discriminator_lr = 1e-2
 
 
 vocab_size, tokenizer, token_probs, full_text_array = preprocess_text(input_text_file)
@@ -42,7 +42,9 @@ gen_opt_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer=generator_optimizer,
     max_lr=generator_lr,
     epochs=num_epochs,
-    steps_per_epoch=135
+    steps_per_epoch=135,
+    base_momentum=0.4,
+    max_momentum=0.9
 )
 
 discriminator_optimizer = torch.optim.AdamW(discriminator.parameters(), lr=discriminator_lr)
@@ -50,7 +52,9 @@ disc_opt_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer=discriminator_optimizer,
     max_lr=discriminator_lr,
     epochs=num_epochs,
-    steps_per_epoch=135
+    steps_per_epoch=135,
+    base_momentum=0.4,
+    max_momentum=0.9
 )
 
 baseline = 0
@@ -95,8 +99,9 @@ with open(output_text_file_path, "a") as output_text_file:
             fake_logits = discriminator(fake_generations)
             fake_labels = torch.zeros((batch_size, 1), device=device)
             
-            fake_loss = F.binary_cross_entropy_with_logits(fake_logits, fake_labels)
-            real_loss = F.binary_cross_entropy_with_logits(real_logits, real_labels)
+            # MSE seems to work better than cross-entropy for some reason
+            fake_loss = F.mse_loss(fake_logits, fake_labels)
+            real_loss = F.mse_loss(real_logits, real_labels)
             discriminator_loss = 0.5 * (fake_loss + real_loss)
             discriminator_loss.backward()
             
