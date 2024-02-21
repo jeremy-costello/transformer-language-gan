@@ -56,11 +56,17 @@ class TransformerGenerator(nn.Module):
 
 
 class TransformerDiscriminator(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, context_length):
         super().__init__()
         # other option is LlamaModel and nn.Linear from 64 -> 1
         self.transformer = LlamaForSequenceClassification(config)
+        self.context_length = context_length
     
-    def forward(self, x):
-        x = self.transformer(x)
-        return x.logits
+    def forward(self, input_ids, index):
+        attention_mask = torch.ones_like(input_ids)
+        attention_mask[:, :(self.context_length - index - 1)] = 0
+        logits = self.transformer(
+            input_ids=input_ids,
+            attention_mask=attention_mask
+        ).logits
+        return logits
