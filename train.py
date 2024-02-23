@@ -12,29 +12,30 @@ from models import TransformerGenerator, TransformerDiscriminator
 
 device = "cuda"
 num_epochs = 1000
-batch_size = 128
+batch_size = 256
 num_workers = 3
 context_length = 32
-input_text_file = "./text/test.txt"
+input_text_file = "./text/names.txt"
 
-entropy_mult = 0.0
+entropy_mult = 0.1
 moving_average_period = 10
-clip_value = 1.0
+clip_value = 0.5
 output_text_file_path = "outputs.txt"
 gamma = 0.9
 
-steps_per_epoch = 40
-generator_lr = 1e-4
-discriminator_lr = 1e-2
+steps_per_epoch = 16
+generator_lr = 3e-4
+discriminator_lr = 3e-3
 
 real_label_target = 0.9
-discriminator_accumulation_steps = 2
+discriminator_accumulation_steps = 8
 discriminator_loss_function = F.binary_cross_entropy_with_logits
 schedule_learning_rate = False
 
-# generator
-beta1 = 0.5
-beta2 = 0.95
+gen_beta1 = 0.2
+gen_beta2 = 0.95
+disc_beta1 = 0.85
+disc_beta2 = 0.95
 
 
 vocab_size, tokenizer, full_text_array = preprocess_text(input_text_file)
@@ -46,26 +47,26 @@ discriminator = TransformerDiscriminator(discriminator_config, context_length=co
 
 # add weight decay and no weight decay groups
 # add LR schedulers
-generator_optimizer = torch.optim.AdamW(generator.parameters(), lr=generator_lr, betas=(beta1, beta2))
+generator_optimizer = torch.optim.AdamW(generator.parameters(), lr=generator_lr, betas=(gen_beta1, gen_beta2))
 if schedule_learning_rate:
     gen_opt_scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer=generator_optimizer,
         max_lr=generator_lr,
         epochs=num_epochs,
         steps_per_epoch=steps_per_epoch,
-        base_momentum=0.4,
-        max_momentum=0.9
+        base_momentum=0.2,
+        max_momentum=0.6
     )
 
-discriminator_optimizer = torch.optim.AdamW(discriminator.parameters(), lr=discriminator_lr)
+discriminator_optimizer = torch.optim.AdamW(discriminator.parameters(), lr=discriminator_lr, betas=(disc_beta1, disc_beta2))
 if schedule_learning_rate:
     disc_opt_scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer=discriminator_optimizer,
         max_lr=discriminator_lr,
         epochs=num_epochs,
         steps_per_epoch=steps_per_epoch,
-        base_momentum=0.4,
-        max_momentum=0.9
+        base_momentum=0.85,
+        max_momentum=0.95
     )
 
 baseline = 0
@@ -83,6 +84,7 @@ with open(output_text_file_path, "a") as output_text_file:
         for iter, batch in enumerate(tqdm(train_loader, leave=False)):
             index = iter % context_length
             if index == 0:
+                # first generation should be chosen from a latent space or something rather than being the EOS token
                 fake_generations = torch.zeros((batch_size, context_length), dtype=torch.int64, device=device)
                 rewards = []
                 log_probs = []
@@ -104,7 +106,7 @@ with open(output_text_file_path, "a") as output_text_file:
                 input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=device)
                 past_key_values = None
             else:
-                input_ids = fake_generations.clone().detach()[:, :index]  # clone, detach?
+                input_ids = fake_generations.clone().detach()[:, :index]
                 past_key_values = None
                 
             fake_inputs = generator.generate(
@@ -128,7 +130,7 @@ with open(output_text_file_path, "a") as output_text_file:
             
             fake_loss = discriminator_loss_function(fake_logits, fake_labels)
             real_loss = discriminator_loss_function(real_logits, real_labels)
-            discriminator_loss = 0.5 * (fake_loss + real_loss)
+            discriminator_loss = 0.5 * (fake_loss + real_loss) / discriminator_accumulation_steps
             discriminator_loss.backward()
             
             cumulative_discriminator_loss += discriminator_loss.item()
@@ -197,4 +199,4 @@ with open(output_text_file_path, "a") as output_text_file:
                 example_index = torch.randint(batch_size, size=(1,)).item()
                 example_list = fake_generations[example_index].detach().cpu().tolist()
                 example_string = "".join([tokenizer["idx2token"][idx] for idx in example_list])
-                output_text_file.write(example_string + "\n\n")
+                output_text_file.write("GENERATION" + "\n" + example_string + "\n")

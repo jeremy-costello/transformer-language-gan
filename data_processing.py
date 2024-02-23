@@ -3,22 +3,27 @@ import numpy as np
 from torch.utils.data import Dataset
 
 
-BOS_TOKEN = "<BOS>"
+EOS_TOKEN = "|"
 
 
 def preprocess_text(text_file):
     with open(text_file, "r") as f:
-        text = f.read()
-
-    vocab = [BOS_TOKEN] + sorted(list(set(text)))
+        text = f.readlines()
+    
+    text_raw = "".join(text)
+    assert EOS_TOKEN not in text_raw
+    
+    text_with_eos_token = EOS_TOKEN + EOS_TOKEN.join(text)
+    
+    vocab = [EOS_TOKEN] + sorted(list(set(text_raw)))
     vocab_size = len(vocab)
-        
+            
     tokenizer = {
         "token2idx": {token: idx for idx, token in enumerate(vocab)},
         "idx2token": {idx: token for idx, token in enumerate(vocab)}
     }
     
-    text_indices = [tokenizer["token2idx"][token] for token in list(text)]
+    text_indices = [tokenizer["token2idx"][token] for token in list(text_with_eos_token)]
     full_text_array = np.array(text_indices)
     
     return vocab_size, tokenizer, full_text_array
@@ -26,7 +31,7 @@ def preprocess_text(text_file):
 
 class TextDataset(Dataset):
     def __init__(self, full_text_array, context_length, batch_size, discriminator_accumulation_steps):
-        shift = np.random.randint(context_length)
+        shift = 0#np.random.randint(context_length)
         text_array = full_text_array[shift:]
         first_truncate = (text_array.shape[0] // context_length) * context_length
         truncated_array = text_array[:first_truncate].reshape(-1, context_length)

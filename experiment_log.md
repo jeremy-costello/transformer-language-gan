@@ -159,4 +159,139 @@ ATTEMPTS
     - adding learning rate scheduling again would probably help
     - or a lower gradient norm clipping value
     - maybe that's a good thing though?
-- 
+- should bump batch size back up again
+
+#23
+- disable discriminator learning
+- generator lr to 1e-3
+- reward plateau ~0.15
+
+#24
+- switch to MSE loss
+- reward oscillates a lot more
+- generation loss depends a lot on the first token
+    - especially when exploiting a randomly initialized discriminator
+    - bigger batch size should mitigate this
+- learning doesn't plateau as hard as before
+- reward curve is shaped like a growing sinusoid
+    - this might be why lower momentum is better
+    - remember that RL in non-stationary
+- reward plat ~0.39
+
+#25
+- batch size from 128 to 256
+- switch to BCE loss
+- gamma from 0.9 to 0.25
+- matches previous after 1.5 epochs
+- only plateaus a bit higher than previous
+
+#26
+- generator lr to 1e-4
+- plateau around 0.25
+
+#27
+- gamma from 0.25 to 0.9
+- stopped around 0.36. starting to plateau
+
+#28
+- enable discriminator learning
+- converges towards only padding tokens
+
+#29
+- entropy mult to 0.01
+- discriminator accumulation to 2
+- top-p sampling to 0.95
+- remove option of generating token 0 in generator
+- discriminator loss is smoother now
+- average reward around -0.5, but learning feels better
+- still gibberish generations
+
+#30
+- discriminator momentum to 0.5
+- discriminator beta2 to 0.95
+- discriminator accumulation to 8
+- loss and reward back to oscillating
+
+#31
+- discriminator accumulation to 4
+- LR scheduler back on
+- discriminator momentum cycle 0.85 -> 0.95
+- generator momentum cycle 0.2 -> 0.6
+- generator learning very slow
+    - maybe increase its LR
+    - or reduce discriminator LR
+- after 74 epochs: discriminator seems to have fully learned. generator did not
+
+#32
+- generator lr to 3e-4
+- discriminator lr to 3e-3
+- discriminator accumulation to 8
+- max grad norm to 0.5
+- entropy mult to 0.0
+- learning rate scheduling off
+- try this again
+
+#33
+- simpler data
+- this seems to be working well
+
+#34
+- even simpler data
+- context length to 4
+- hit one good generation and reward went from -0.7 to -0.1 then leveled out again at -0.5
+    - this is why low momentum
+- generator is learning and outputs are decently close to the training data
+    - letters are correct but sometimes in weird orders
+        - lower gamma may help fix this
+        - or lower rope theta
+        - or absolute embeddings
+- plateauing around -0.47 reward. will keep training running though
+- discriminator is overpowering the generator, but only slightly
+
+#35
+- rope theta from 200 to 25
+- discriminator attention dropout from 0.5 to 0.0
+- generations frequently repeat letters
+- similar plateau to previous
+
+#36
+- context length to 8
+- attention heads in both networks to 4
+- rope theta to 50
+- similar
+
+#37
+- slightly more complex data
+- generator layers from 3 to 8
+- discriminator
+    - layers from 6 to 4
+    - hidden size from 256 to 64
+    - intermediate size from 1024 to 256
+- generator does worse now
+    - might be because of the data
+    - more diverse data would probably make the discriminator learn slower
+        - scaling?
+- reward plat -0.83, disc loss 0.26
+
+#38
+- top-p from 0.95 to 1.0
+- entropy mult from 0.0 to 0.1
+- reward plateau -0.5, disc loss 0.47
+
+#39
+- divide discriminator loss by accumulation steps
+- divide both losses by context length
+
+#40
+- remove division by context length
+- batch size got raised to 1024 a few experiments ago. forgot to record when
+
+#41
+- batch size to 128
+- context length to 32
+- new data (karpathy names.txt)
+- allow generator to choose EOS token again
+- attention heads to 8 in both models
+- generator 8 layers to 6 layers
+- discriminator 4 layers to 3 layers
+- it's learning pretty well. not fully converged after ~50 epochs
