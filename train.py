@@ -10,6 +10,9 @@ from data_processing import preprocess_text, TextDataset
 from models import TransformerGenerator, TransformerDiscriminator
 
 
+use_wandb = True
+project_name = "test-project"
+
 device = "cuda"
 num_epochs = 1000
 batch_size = 256
@@ -21,21 +24,37 @@ entropy_mult = 0.1
 moving_average_period = 10
 clip_value = 0.5
 output_text_file_path = "outputs.txt"
-gamma = 0.9
+gamma = 0.5
 
 steps_per_epoch = 16
 generator_lr = 3e-4
-discriminator_lr = 3e-3
+discriminator_lr = 1.5e-3
 
 real_label_target = 0.9
 discriminator_accumulation_steps = 8
 discriminator_loss_function = F.binary_cross_entropy_with_logits
 schedule_learning_rate = False
 
-gen_beta1 = 0.2
+gen_beta1 = 0.5
 gen_beta2 = 0.95
-disc_beta1 = 0.85
+disc_beta1 = 0.9
 disc_beta2 = 0.95
+
+if use_wandb:
+    import wandb
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    api_key = os.getenv("WANDB_API_KEY")
+    
+    hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str, bool)) and not k.startswith("_")}
+    hparams["discriminator_loss_function"] = discriminator_loss_function.__name__
+    print(hparams)
+
+    wandb.login(key=api_key)
+    wandb.init(project=project_name)
+    wandb.config.update(hparams)
 
 
 vocab_size, tokenizer, full_text_array = preprocess_text(input_text_file)
@@ -130,7 +149,7 @@ with open(output_text_file_path, "a") as output_text_file:
             
             fake_loss = discriminator_loss_function(fake_logits, fake_labels)
             real_loss = discriminator_loss_function(real_logits, real_labels)
-            discriminator_loss = 0.5 * (fake_loss + real_loss) / discriminator_accumulation_steps
+            discriminator_loss = 0.5 * (fake_loss + real_loss)
             discriminator_loss.backward()
             
             cumulative_discriminator_loss += discriminator_loss.item()
@@ -165,7 +184,7 @@ with open(output_text_file_path, "a") as output_text_file:
                 rewards = torch.stack(rewards, dim=0)
                 cumulative_rewards = torch.stack(cumulative_rewards, dim=0)
                 
-                mean_reward = torch.mean(rewards)
+                mean_reward = torch.mean(rewards).item()
                 mean_cumulative_reward = torch.mean(cumulative_rewards)
                 baseline = (1.0 - 1.0 / moving_average_period) * baseline \
                     + (1.0 / moving_average_period) * mean_cumulative_reward
@@ -187,14 +206,21 @@ with open(output_text_file_path, "a") as output_text_file:
                 generator_optimizer.zero_grad()
                 
                 average_generator_loss = cumulative_generator_loss / context_length
-            
-                print(
-                    "\n"
-                    f"discriminator loss: {round(average_discriminator_loss, 4)}, "
-                    f"generator loss: {round(average_generator_loss, 4)}, "
-                    f"average reward: {round(mean_reward.item(), 4)}"
-                    "\n"
-                )
+
+                if use_wandb:
+                    wandb.log({
+                        "discriminator_loss": average_discriminator_loss,
+                        "generator_loss": average_generator_loss,
+                        "average_reward": mean_reward
+                    })
+                else:
+                    print(
+                        "\n"
+                        f"discriminator loss: {round(average_discriminator_loss, 4)}, "
+                        f"generator loss: {round(average_generator_loss, 4)}, "
+                        f"average reward: {round(mean_reward, 4)}"
+                        "\n"
+                    )
             
                 example_index = torch.randint(batch_size, size=(1,)).item()
                 example_list = fake_generations[example_index].detach().cpu().tolist()

@@ -295,3 +295,31 @@ ATTEMPTS
 - generator 8 layers to 6 layers
 - discriminator 4 layers to 3 layers
 - it's learning pretty well. not fully converged after ~50 epochs
+
+#42
+- remove division by accumulation steps in discriminator loss
+- discriminator lr from 3e-3 to 1.5e-3
+- generator lr from 3e-4 to 6e-4
+- discriminator momentum from 0.85 to 0.9
+- generator momentum from 0.2 to 0.5
+- discriminator learning a bit too slow?
+- is higher entropy stabilizing the learning? (0.1)
+
+#43
+- entropy mult from 0.1 to 0.01
+- generator lr from 6e-4 to 3e-4
+
+#44
+- entropy mult from 0.01 to 0.1
+- after 112 epochs: reward -0.15, disc loss 0.61
+
+#45
+- gamma from 0.9 to 0.5
+- rewards are hovering around a lower value in early training (-0.4 instead of -0.1)
+- less repetition of EOS token. could be luck?
+- generator is learning slower now since returns are lower
+- 
+
+#46
+- rope theta from 50 to 200
+- re-add shift to data

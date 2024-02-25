@@ -12,7 +12,7 @@ def get_configs(vocab_size, context_length):
         bos_token_id=0,
         eos_token_id=0,
         pad_token_id=0,
-        rope_theta=50.0,
+        rope_theta=200.0,
         tie_word_embeddings=True
     )
 
@@ -26,7 +26,7 @@ def get_configs(vocab_size, context_length):
         bos_token_id=0,
         eos_token_id=0,
         pad_token_id=0,
-        rope_theta=50.0,
+        rope_theta=200.0,
         attention_dropout=0.0,
         num_labels=1
     )

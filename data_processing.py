@@ -31,7 +31,7 @@ def preprocess_text(text_file):
 
 class TextDataset(Dataset):
     def __init__(self, full_text_array, context_length, batch_size, discriminator_accumulation_steps):
-        shift = 0#np.random.randint(context_length)
+        shift = np.random.randint(context_length)
         text_array = full_text_array[shift:]
         first_truncate = (text_array.shape[0] // context_length) * context_length
         truncated_array = text_array[:first_truncate].reshape(-1, context_length)
