@@ -323,3 +323,23 @@ ATTEMPTS
 #46
 - rope theta from 50 to 200
 - re-add shift to data
+
+#47
+- generator lr from 3e-4 to 6e-4
+- context length from 32 to 16
+- batch size from 256 to 512
+- reward -0.4 after 200 epochs
+
+#48
+- gamma from 0.5 to 0.9
+- entropy mult from 0.1 to 0.01
+- mode collapse after 200 epochs
+- pretty crazy loss/reward curves
+
+#49
+- entropy mult from 0.01 to 1
+
+#50
+- entropy mult from 1 to 0.01
+- context length from 16 to 32
+- batch size from 512 to 32

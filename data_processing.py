@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from collections import Counter
 from torch.utils.data import Dataset
 
 
@@ -16,17 +17,25 @@ def preprocess_text(text_file):
     text_with_eos_token = EOS_TOKEN + EOS_TOKEN.join(text)
     
     vocab = [EOS_TOKEN] + sorted(list(set(text_raw)))
+    print(vocab)
     vocab_size = len(vocab)
+    
+    total_length = len(list(text_with_eos_token))
             
     tokenizer = {
         "token2idx": {token: idx for idx, token in enumerate(vocab)},
         "idx2token": {idx: token for idx, token in enumerate(vocab)}
     }
     
+    token_probs = torch.zeros(vocab_size)
+    for key, value in Counter(list(text_with_eos_token)).items():
+        token_probs[tokenizer["token2idx"][key]] = value / total_length
+    assert np.isclose(token_probs.sum().item(), 1.0)
+    
     text_indices = [tokenizer["token2idx"][token] for token in list(text_with_eos_token)]
     full_text_array = np.array(text_indices)
     
-    return vocab_size, tokenizer, full_text_array
+    return vocab_size, tokenizer, full_text_array, token_probs
 
 
 class TextDataset(Dataset):

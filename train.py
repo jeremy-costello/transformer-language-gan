@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.distributions import Categorical
 
 from configs import get_configs
 from data_processing import preprocess_text, TextDataset
@@ -15,19 +16,19 @@ project_name = "test-project"
 
 device = "cuda"
 num_epochs = 1000
-batch_size = 256
+batch_size = 32
 num_workers = 3
 context_length = 32
 input_text_file = "./text/names.txt"
 
-entropy_mult = 0.1
+entropy_mult = 0.01
 moving_average_period = 10
 clip_value = 0.5
 output_text_file_path = "outputs.txt"
-gamma = 0.5
+gamma = 0.9
 
 steps_per_epoch = 16
-generator_lr = 3e-4
+generator_lr = 6e-4
 discriminator_lr = 1.5e-3
 
 real_label_target = 0.9
@@ -47,17 +48,20 @@ if use_wandb:
     load_dotenv()
     
     api_key = os.getenv("WANDB_API_KEY")
+    wandb.login(key=api_key)
+    del api_key
     
     hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str, bool)) and not k.startswith("_")}
     hparams["discriminator_loss_function"] = discriminator_loss_function.__name__
     print(hparams)
 
-    wandb.login(key=api_key)
+    
     wandb.init(project=project_name)
     wandb.config.update(hparams)
 
 
-vocab_size, tokenizer, full_text_array = preprocess_text(input_text_file)
+vocab_size, tokenizer, full_text_array, token_probs = preprocess_text(input_text_file)
+token_probs_batched = torch.stack((token_probs,) * batch_size, dim=0).to(device)
 
 generator_config, discriminator_config = get_configs(vocab_size, context_length)
 
@@ -122,18 +126,30 @@ with open(output_text_file_path, "a") as output_text_file:
             real_labels = real_label_target * torch.ones((batch_size, 1), device=device)
             
             if index == 0:
-                input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=device)
+                dist = Categorical(probs=token_probs_batched)
                 past_key_values = None
+                
+                output_id = dist.sample()
+                log_prob = dist.log_prob(output_id)
+                entropy = dist.entropy()
+                
+                fake_inputs = {
+                    "output_id": output_id,
+                    "log_prob": log_prob,
+                    "entropy": entropy,
+                    "past_key_values": past_key_values
+                }
             else:
                 input_ids = fake_generations.clone().detach()[:, :index]
                 past_key_values = None
                 
-            fake_inputs = generator.generate(
-                input_ids=input_ids,
-                past_key_values=past_key_values,
-                temperature=1.0,  # could possibly add temperature as part of the action space
-                top_p=1.0
-            )
+                fake_inputs = generator.generate(
+                    input_ids=input_ids,
+                    past_key_values=past_key_values,
+                    temperature=1.0,  # could possibly add temperature as part of the action space
+                    top_p=1.0
+                )
+            
             fake_generations[:, index] = fake_inputs["output_id"].squeeze(-1)
             
             current_fake_generation = torch.cat(
@@ -190,7 +206,7 @@ with open(output_text_file_path, "a") as output_text_file:
                     + (1.0 / moving_average_period) * mean_cumulative_reward
                 
                 cumulative_generator_loss = 0
-                for cumulative_reward, log_prob, entropy in zip(cumulative_rewards, log_probs, entropies):
+                for cumulative_reward, log_prob, entropy in zip(cumulative_rewards[1:], log_probs[1:], entropies[1:]):
                     advantage = cumulative_reward - baseline
                     log_loss = -1.0 * torch.mean(advantage.detach() * log_prob)
                     entropy_loss = -1.0 * entropy_mult * torch.mean(entropy)
